@@ -1,0 +1,17 @@
+{
+  "name": "SongVerse – Global Song Guessing Platform",
+  "short_name": "SongVerse",
+  "description": "Identify songs from progressively longer audio clips across international genres and decades.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF9F6",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

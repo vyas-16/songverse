@@ -1,0 +1,504 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Trophy,
+  Flame,
+  ArrowRight,
+  RotateCcw,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  AlertCircle,
+  Home,
+  Award,
+  Disc3,
+  FastForward
+} from 'lucide-react';
+import { GameSession, GameRound, Track, GameMode } from '../../types';
+import { gameEngine } from '../../services/gameEngine';
+import { GAME_LEVELS } from '../../config/gameConfig';
+import { AudioPlayer } from './AudioPlayer';
+import { SongSearchInput } from './SongSearchInput';
+import { audioEngine } from '../../services/audioEngine';
+
+interface GameViewProps {
+  mode: GameMode;
+  onNavigateHome: () => void;
+  onNavigateLeaderboard: () => void;
+  categoryFilter?: { type: 'genre' | 'decade' | 'language'; value: string };
+}
+
+export const GameView: React.FC<GameViewProps> = ({
+  mode,
+  onNavigateHome,
+  onNavigateLeaderboard,
+  categoryFilter
+}) => {
+  const [session, setSession] = useState<GameSession | null>(null);
+  const [currentRound, setCurrentRound] = useState<GameRound | null>(null);
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  // Initialize or resume session
+  useEffect(() => {
+    let s = gameEngine.getActiveSession();
+    if (!s || s.status !== 'in-progress' || s.mode !== mode) {
+      s = gameEngine.startSession({ mode, categoryFilter });
+    }
+    setSession(s);
+    if (s && s.rounds.length > 0) {
+      setCurrentRound(s.rounds[s.currentRoundIndex]);
+    }
+  }, [mode, categoryFilter]);
+
+  const targetTrack = currentRound ? gameEngine.getCurrentTargetTrack(currentRound) : undefined;
+
+  const handleSubmitGuess = () => {
+    if (!selectedTrack || !currentRound || currentRound.status !== 'playing') return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const result = gameEngine.submitGuess(selectedTrack.id);
+      setSession({ ...result.session });
+      setCurrentRound({ ...result.round });
+      setSelectedTrack(null);
+
+      if (result.isCorrect) {
+        audioEngine.playCorrectSound();
+        if (result.round.currentLevel === 1 || result.session.totalScore >= 300) {
+          setShowCelebration(true);
+          setTimeout(() => setShowCelebration(false), 3500);
+        }
+      } else {
+        if (result.round.status === 'lost') {
+          audioEngine.playIncorrectSound();
+        } else {
+          audioEngine.playLevelUnlockSound();
+        }
+      }
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message || 'Submission error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSkipLevel = () => {
+    if (!currentRound || currentRound.status !== 'playing') return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const result = gameEngine.skipCurrentLevel();
+      setSession({ ...result.session });
+      setCurrentRound({ ...result.round });
+      setSelectedTrack(null);
+      if (result.round.status === 'lost') {
+        audioEngine.playIncorrectSound();
+      } else {
+        audioEngine.playLevelUnlockSound();
+      }
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message || 'Skip error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSkipRound = () => {
+    if (!currentRound || currentRound.status !== 'playing') return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const result = gameEngine.skipRound();
+      setSession({ ...result.session });
+      setCurrentRound({ ...result.round });
+      setSelectedTrack(null);
+      audioEngine.playIncorrectSound();
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message || 'Skip round error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleNextRound = () => {
+    setErrorMessage(null);
+    setSelectedTrack(null);
+    audioEngine.stop();
+
+    try {
+      const nextRnd = gameEngine.advanceToNextRound();
+      const updatedSession = gameEngine.getActiveSession();
+      setSession(updatedSession ? { ...updatedSession } : null);
+      setCurrentRound(nextRnd ? { ...nextRnd } : null);
+    } catch (err: unknown) {
+      setErrorMessage((err as Error).message);
+    }
+  };
+
+  const handleRestartGame = () => {
+    audioEngine.stop();
+    const newSession = gameEngine.startSession({ mode, categoryFilter });
+    setSession(newSession);
+    setCurrentRound(newSession.rounds[0]);
+    setSelectedTrack(null);
+    setErrorMessage(null);
+  };
+
+  if (session && session.rounds.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center animate-in fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-5 shadow-xs">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">
+          No Authorized Audio Available for {categoryFilter ? categoryFilter.value : 'Filter'}
+        </h2>
+        <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+          Under SongVerse's strict compliance policy, commercial recordings without authorized trivia licenses cannot be played in guessing rounds. No fake audio or placeholder URLs are ever inserted. You can explore song metadata in the Catalogue or select another language for gameplay.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            onClick={() => {
+              gameEngine.abandonActiveSession();
+              onNavigateHome();
+            }}
+            className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+          >
+            Play All Languages
+          </button>
+          <button
+            onClick={onNavigateHome}
+            className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session || !currentRound || !targetTrack) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        <div className="w-12 h-12 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm text-slate-500">Preparing music trivia session...</p>
+      </div>
+    );
+  }
+
+  const isRoundOver = currentRound.status !== 'playing';
+  const isSessionOver = session.status === 'completed';
+  const currentLevelConfig = GAME_LEVELS[currentRound.currentLevel];
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      
+      {/* Celebration Confetti Effect Banner */}
+      {showCelebration && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600 text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-lg flex items-center gap-2 animate-bounce">
+          <Sparkles className="w-4 h-4" />
+          <span>Incredible Ear! 100 Points Awarded at Level 1!</span>
+        </div>
+      )}
+
+      {/* Top HUD Card */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 mb-8 shadow-xs flex flex-wrap items-center justify-between gap-4">
+        
+        {/* Round Counter */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
+            #{currentRound.roundNumber}
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Round {currentRound.roundNumber} of {session.rounds.length}
+            </div>
+            <div className="text-sm font-bold text-slate-900 capitalize">
+              {session.mode} Mode
+            </div>
+          </div>
+        </div>
+
+        {/* Level Progression Indicator */}
+        <div className="flex items-center gap-2">
+          {([1, 2, 3, 4] as const).map((lvl) => {
+            const isCompleted = lvl < currentRound.currentLevel || (isRoundOver && lvl <= currentRound.currentLevel);
+            const isCurrent = lvl === currentRound.currentLevel && !isRoundOver;
+            const guessAtThisLevel = currentRound.guesses.find(g => g.level === lvl);
+
+            let badgeBg = 'bg-slate-100 text-slate-400 border-slate-200';
+            if (isCurrent) {
+              badgeBg = 'bg-indigo-600 text-white border-indigo-600 shadow-sm';
+            } else if (guessAtThisLevel?.isCorrect) {
+              badgeBg = 'bg-emerald-500 text-white border-emerald-500';
+            } else if (guessAtThisLevel && !guessAtThisLevel.isCorrect) {
+              badgeBg = 'bg-rose-100 text-rose-700 border-rose-200';
+            } else if (isCompleted) {
+              badgeBg = 'bg-slate-200 text-slate-600 border-slate-300';
+            }
+
+            return (
+              <div
+                key={lvl}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center text-xs font-bold transition-all ${badgeBg}`}
+                title={`Level ${lvl} (${GAME_LEVELS[lvl].durationSeconds}s · ${GAME_LEVELS[lvl].points}pts)`}
+              >
+                {lvl}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Score & Potential Points */}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Total Score
+            </div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">
+              {session.totalScore} pts
+            </div>
+          </div>
+
+          <div className="h-8 w-px bg-slate-200" />
+
+          <div className="text-right">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Reward
+            </div>
+            <div className="text-sm font-bold text-indigo-600 tabular-nums">
+              +{isRoundOver ? currentRound.pointsAwarded : currentLevelConfig.points} pts
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Audio Waveform Player */}
+      <div className="mb-8">
+        <AudioPlayer
+          track={targetTrack}
+          level={currentRound.currentLevel}
+          roundStatus={currentRound.status}
+        />
+      </div>
+
+      {/* Answer Submission or Result Section */}
+      {!isRoundOver ? (
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-xs">
+          
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-slate-900">
+              Who is playing this track?
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Type the song title or artist to search the authorized music catalogue, then submit your guess.
+            </p>
+          </div>
+
+          {errorMessage && (
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <SongSearchInput
+              selectedTrack={selectedTrack}
+              onSelectTrack={(t) => setSelectedTrack(t)}
+              onClearSelection={() => setSelectedTrack(null)}
+              disabled={isSubmitting}
+            />
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleSkipLevel}
+                  disabled={isSubmitting}
+                  className="flex-1 sm:flex-none px-3.5 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  title="Unlock next level with more audio while reducing available points"
+                >
+                  <FastForward className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>
+                    {currentRound.currentLevel === 1 && 'Skip Level 1 (Deduct: 100 → 70 pts)'}
+                    {currentRound.currentLevel === 2 && 'Skip Level 2 (Deduct: 70 → 40 pts)'}
+                    {currentRound.currentLevel === 3 && 'Skip Level 3 (Deduct: 40 → 20 pts)'}
+                    {currentRound.currentLevel === 4 && 'Skip Level 4 (Forfeit · 0 pts)'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSkipRound}
+                  disabled={isSubmitting}
+                  className="px-3 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1"
+                  title="Skip entire round (0 points awarded for this round)"
+                >
+                  <span>Skip Round</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSubmitGuess}
+                disabled={!selectedTrack || isSubmitting}
+                className={`w-full sm:w-auto px-6 py-2.5 text-xs font-semibold text-white rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 ${
+                  selectedTrack && !isSubmitting
+                    ? 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 cursor-pointer shadow-indigo-200'
+                    : 'bg-slate-300 cursor-not-allowed'
+                }`}
+              >
+                <span>Submit Guess</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+        </div>
+      ) : (
+        /* Round Completed Card */
+        <div className={`rounded-2xl p-6 sm:p-8 border shadow-xs transition-all ${
+          currentRound.status === 'won'
+            ? 'bg-emerald-50/60 border-emerald-200'
+            : 'bg-rose-50/60 border-rose-200'
+        }`}>
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            
+            <div className="flex items-center gap-4">
+              <div
+                className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${targetTrack.artworkGradient} flex items-center justify-center text-white shrink-0 shadow-md`}
+              >
+                <Disc3 className="w-8 h-8 opacity-90" />
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  {currentRound.status === 'won' ? (
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Correct! +{currentRound.pointsAwarded} pts
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" /> Round Ended · 0 pts
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-500 font-medium">
+                    {targetTrack.genre} · {targetTrack.releaseYear}
+                  </span>
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-900 leading-tight">
+                  {targetTrack.title}
+                </h3>
+                <p className="text-xs text-slate-600">
+                  {targetTrack.artist} — {targetTrack.album}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Licence: {targetTrack.licenceType} ({targetTrack.licenceReference})
+                </p>
+              </div>
+            </div>
+
+            {/* Next Action */}
+            <div className="w-full sm:w-auto shrink-0">
+              {!isSessionOver ? (
+                <button
+                  onClick={handleNextRound}
+                  className="w-full sm:w-auto px-6 py-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Next Round</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleRestartGame}
+                  className="w-full sm:w-auto px-6 py-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Play Again</span>
+                </button>
+              )}
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* Session Completed Final Summary Modal */}
+      {isSessionOver && (
+        <div className="mt-8 bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-md">
+          <div className="text-center max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 bg-amber-50 border border-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+              <Trophy className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">
+                Session Complete!
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                You scored <strong className="text-indigo-600 text-sm tabular-nums">{session.totalScore} points</strong> across {session.rounds.length} rounds.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 py-3 border-y border-slate-100">
+              <div className="p-2">
+                <div className="text-base font-bold text-slate-900 tabular-nums">
+                  {session.rounds.filter(r => r.status === 'won').length} / {session.rounds.length}
+                </div>
+                <div className="text-[11px] text-slate-400">Rounds Won</div>
+              </div>
+              <div className="p-2">
+                <div className="text-base font-bold text-slate-900 tabular-nums">
+                  {Math.round((session.rounds.filter(r => r.status === 'won').length / session.rounds.length) * 100)}%
+                </div>
+                <div className="text-[11px] text-slate-400">Accuracy</div>
+              </div>
+              <div className="p-2">
+                <div className="text-base font-bold text-slate-900 tabular-nums">
+                  {session.totalScore}
+                </div>
+                <div className="text-[11px] text-slate-400">Total Score</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={handleRestartGame}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
+              >
+                Play Another Game
+              </button>
+              <button
+                onClick={onNavigateLeaderboard}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                View Leaderboard
+              </button>
+              <button
+                onClick={onNavigateHome}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+              >
+                Home
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
