@@ -30,10 +30,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 }) => {
   const [demoLevel, setDemoLevel] = useState<1 | 2 | 3 | 4>(1);
   const [isPlayingDemo, setIsPlayingDemo] = useState(false);
-  const demoTrack = musicCatalogue.getAvailableTracks()[0]; // Neon Solitude
+  const demoTrack = musicCatalogue.getAvailableTracks()[0]; // First available track, if any
 
   const handleTestAudioSnippet = async (level: 1 | 2 | 3 | 4) => {
     setDemoLevel(level);
+    if (!demoTrack) return;
     if (isPlayingDemo) {
       audioEngine.stop();
       setIsPlayingDemo(false);
@@ -120,7 +121,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </span>
                   </div>
                   <span className="text-xs font-mono text-slate-400">
-                    Track #{demoTrack.providerTrackId}
+                    {demoTrack ? `Track #${demoTrack.providerTrackId}` : 'Catalogue Waiting'}
                   </span>
                 </div>
 
@@ -133,7 +134,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <button
                         key={lvl}
                         onClick={() => handleTestAudioSnippet(lvl)}
-                        className={`py-2 px-1 text-center rounded-lg transition-all cursor-pointer ${
+                        disabled={!demoTrack}
+                        className={`py-2 px-1 text-center rounded-lg transition-all ${
+                          !demoTrack ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        } ${
                           active
                             ? 'bg-white text-indigo-700 font-bold shadow-xs'
                             : 'text-slate-600 hover:text-slate-900 font-medium'
@@ -168,9 +172,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="space-y-3">
                   <button
                     onClick={() => handleTestAudioSnippet(demoLevel)}
-                    className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    disabled={!demoTrack}
+                    className={`w-full py-3 px-4 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
+                      !demoTrack
+                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none'
+                        : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white cursor-pointer'
+                    }`}
                   >
-                    {isPlayingDemo ? (
+                    {!demoTrack ? (
+                      <>
+                        <Disc3 className="w-4 h-4 text-slate-400" />
+                        <span>Your playlist is waiting 🎵 — Add songs to test</span>
+                      </>
+                    ) : isPlayingDemo ? (
                       <>
                         <RotateCcw className="w-4 h-4 animate-spin" />
                         <span>Playing {GAME_LEVELS[demoLevel].durationSeconds}s snippet...</span>
@@ -184,7 +198,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </button>
 
                   <div className="text-center text-[11px] text-slate-500">
-                    Audio synthesized via Web Audio API. 0 external credentials needed.
+                    {demoTrack
+                      ? 'Audio synthesized via Web Audio API. 0 external credentials needed.'
+                      : 'Songs will appear here once added to the active catalogue.'}
                   </div>
                 </div>
 

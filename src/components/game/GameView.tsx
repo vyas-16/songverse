@@ -23,6 +23,8 @@ import { audioEngine } from '../../services/audioEngine';
 
 interface GameViewProps {
   mode: GameMode;
+  selectedLanguages?: string[];
+  onChangeLanguages?: () => void;
   onNavigateHome: () => void;
   onNavigateLeaderboard: () => void;
   categoryFilter?: { type: 'genre' | 'decade' | 'language'; value: string };
@@ -30,6 +32,8 @@ interface GameViewProps {
 
 export const GameView: React.FC<GameViewProps> = ({
   mode,
+  selectedLanguages,
+  onChangeLanguages,
   onNavigateHome,
   onNavigateLeaderboard,
   categoryFilter
@@ -44,14 +48,17 @@ export const GameView: React.FC<GameViewProps> = ({
   // Initialize or resume session
   useEffect(() => {
     let s = gameEngine.getActiveSession();
-    if (!s || s.status !== 'in-progress' || s.mode !== mode) {
-      s = gameEngine.startSession({ mode, categoryFilter });
+    const languagesChanged = selectedLanguages && selectedLanguages.length > 0 &&
+      (!s?.selectedLanguages || s.selectedLanguages.slice().sort().join(',') !== [...selectedLanguages].sort().join(','));
+
+    if (!s || s.status !== 'in-progress' || s.mode !== mode || languagesChanged) {
+      s = gameEngine.startSession({ mode, categoryFilter, selectedLanguages });
     }
     setSession(s);
     if (s && s.rounds.length > 0) {
       setCurrentRound(s.rounds[s.currentRoundIndex]);
     }
-  }, [mode, categoryFilter]);
+  }, [mode, categoryFilter, selectedLanguages]);
 
   const targetTrack = currentRound ? gameEngine.getCurrentTargetTrack(currentRound) : undefined;
 
@@ -146,7 +153,7 @@ export const GameView: React.FC<GameViewProps> = ({
 
   const handleRestartGame = () => {
     audioEngine.stop();
-    const newSession = gameEngine.startSession({ mode, categoryFilter });
+    const newSession = gameEngine.startSession({ mode, categoryFilter, selectedLanguages });
     setSession(newSession);
     setCurrentRound(newSession.rounds[0]);
     setSelectedTrack(null);
@@ -156,27 +163,32 @@ export const GameView: React.FC<GameViewProps> = ({
   if (session && session.rounds.length === 0) {
     return (
       <div className="max-w-xl mx-auto px-4 py-16 text-center animate-in fade-in">
-        <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-5 shadow-xs">
-          <AlertCircle className="w-8 h-8" />
+        <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-5 shadow-xs">
+          <Disc3 className="w-8 h-8 animate-spin-slow" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">
-          No Authorized Audio Available for {categoryFilter ? categoryFilter.value : 'Filter'}
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">
+          Your playlist is waiting 🎵
         </h2>
-        <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-          Under SongVerse's strict compliance policy, commercial recordings without authorized trivia licenses cannot be played in guessing rounds. No fake audio or placeholder URLs are ever inserted. You can explore song metadata in the Catalogue or select another language for gameplay.
+        <p className="text-sm text-slate-600 mb-6 leading-relaxed max-w-md mx-auto">
+          Songs will appear here once added to the active catalogue. Add playable recordings to start progressive 4-level guessing rounds!
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          {onChangeLanguages && (
+            <button
+              onClick={() => {
+                gameEngine.abandonActiveSession();
+                onChangeLanguages();
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+            >
+              Choose Languages
+            </button>
+          )}
           <button
             onClick={() => {
               gameEngine.abandonActiveSession();
               onNavigateHome();
             }}
-            className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
-          >
-            Play All Languages
-          </button>
-          <button
-            onClick={onNavigateHome}
             className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer"
           >
             Return to Home
@@ -279,6 +291,20 @@ export const GameView: React.FC<GameViewProps> = ({
               +{isRoundOver ? currentRound.pointsAwarded : currentLevelConfig.points} pts
             </div>
           </div>
+
+          {/* Language Preference Quick Button */}
+          {onChangeLanguages && (
+            <button
+              onClick={() => {
+                audioEngine.stop();
+                onChangeLanguages();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-all cursor-pointer focus:outline-none ml-2"
+              title="Change active languages"
+            >
+              <span>🌍 Languages</span>
+            </button>
+          )}
         </div>
 
       </div>
@@ -478,10 +504,21 @@ export const GameView: React.FC<GameViewProps> = ({
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <button
                 onClick={handleRestartGame}
-                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer shadow-xs"
               >
                 Play Another Game
               </button>
+              {onChangeLanguages && (
+                <button
+                  onClick={() => {
+                    audioEngine.stop();
+                    onChangeLanguages();
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  Change Languages
+                </button>
+              )}
               <button
                 onClick={onNavigateLeaderboard}
                 className="w-full sm:w-auto px-5 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"

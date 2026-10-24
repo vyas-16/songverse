@@ -116,9 +116,10 @@ class GameEngineService {
     mode: GameMode;
     totalRounds?: number;
     categoryFilter?: { type: 'genre' | 'decade' | 'language'; value: string };
+    selectedLanguages?: string[];
     dateString?: string;
   }): GameSession {
-    const { mode, categoryFilter, dateString } = options;
+    const { mode, categoryFilter, selectedLanguages, dateString } = options;
     const totalRounds = options.totalRounds || (mode === 'daily' ? DAILY_CHALLENGE_ROUNDS : DEFAULT_ROUNDS_PER_GAME);
 
     let eligibleTracks: Track[];
@@ -126,13 +127,14 @@ class GameEngineService {
     if (mode === 'daily') {
       const dateKey = dateString || new Date().toISOString().split('T')[0];
       eligibleTracks = this.getDailyChallengeTracks(dateKey, totalRounds);
+    } else if (selectedLanguages && selectedLanguages.length > 0) {
+      eligibleTracks = musicCatalogue.getPlayableTracksByLanguages(selectedLanguages);
     } else if (mode === 'category' && categoryFilter) {
       const filtered = musicCatalogue.getTracksByFilter({
         genre: categoryFilter.type === 'genre' ? categoryFilter.value : undefined,
         decade: categoryFilter.type === 'decade' ? categoryFilter.value : undefined,
         language: categoryFilter.type === 'language' ? categoryFilter.value : undefined
       });
-      // Only tracks with verified playable audio
       eligibleTracks = filtered.filter(t => t.playbackStatus === 'verified_audio' && t.availabilityStatus === 'available');
     } else {
       eligibleTracks = musicCatalogue.getAvailableTracks();
@@ -183,7 +185,8 @@ class GameEngineService {
       totalScore: 0,
       status: 'in-progress',
       startedAt: Date.now(),
-      categoryFilter
+      categoryFilter,
+      selectedLanguages
     };
 
     this.activeSession = session;

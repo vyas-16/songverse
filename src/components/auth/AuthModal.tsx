@@ -73,72 +73,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* Options List */}
         <div className="space-y-3.5 mb-6">
           
-          {/* Option 1: Continue with Apple */}
-          <div className="border border-slate-200 rounded-2xl p-4 transition-all hover:border-slate-300 bg-white">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 170 170">
-                    <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.42-6-9.21-10.88-20.08-14.62-32.61-3.74-12.53-5.61-24.16-5.61-34.89 0-14.81 3.8-27.12 11.41-36.93 7.6-9.81 17.06-14.86 28.38-15.15 4.35 0 9.17 1.13 14.46 3.4 5.29 2.27 8.94 3.45 10.95 3.55 1.57 0 5.42-1.28 11.56-3.83 6.13-2.55 11.4-3.68 15.79-3.4 11.75.53 21.17 4.7 28.27 12.52-10.22 6.19-15.22 14.86-15.01 26.02.21 8.7 3.58 15.98 10.11 21.84 6.53 5.86 14.15 9.11 22.86 9.76-2.02 6.09-4.54 12.44-7.57 19.06zM119.22 31.84c0-7.39 2.65-14.44 7.95-21.14 5.3-6.7 11.83-10.7 19.59-12 1.06 7.61-1.38 14.73-7.32 21.36-5.94 6.63-12.68 10.56-20.22 11.78z"/>
-                  </svg>
+          {/* Option 1: Play as Guest (Instant & Default — Zero Configuration Required) */}
+          <div className="border-2 border-indigo-500/70 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 rounded-2xl p-4.5 shadow-sm transition-all">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                  🎮
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>Continue with Apple</span>
-                    {!authState.providers.apple.configured && (
-                      <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                        Setup Required
-                      </span>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Play as Guest
+                    </h3>
+                    <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-100/90 border border-indigo-200 px-2 py-0.5 rounded-full">
+                      Recommended · Instant
+                    </span>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Use your Apple ID for verified cross-device play
+                    Zero setup or environment variables required
                   </p>
                 </div>
               </div>
 
-              {!authState.providers.apple.configured ? (
-                <button
-                  type="button"
-                  onClick={() => toggleSetup('apple')}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <span>Checklist</span>
-                  {showSetupDetails === 'apple' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-xl transition-colors cursor-pointer"
-                >
-                  Sign In
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handlePlayAsGuest}
+                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              >
+                Start Playing
+              </button>
             </div>
 
-            {/* Apple Setup Checklist Drawer */}
-            {showSetupDetails === 'apple' && (
-              <div className="mt-4 pt-3 border-t border-slate-100 text-xs space-y-2 bg-slate-50 p-3 rounded-xl">
-                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Apple Sign-In Setup Requirements:</span>
-                </div>
-                <p className="text-[11px] text-slate-600">
-                  Sign in with Apple requires active credentials in server environment variables:
-                </p>
-                <ul className="list-disc pl-5 space-y-1 text-[11px] text-slate-600">
-                  {authState.providers.apple.setupInstructions.map((inst, i) => (
-                    <li key={i}>{inst}</li>
-                  ))}
-                </ul>
-                <div className="text-[10px] text-slate-500 font-mono mt-1 pt-1 border-t border-slate-200">
-                  Missing variables: {authState.providers.apple.missingEnvVars.join(', ')}
-                </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Play immediately across all 40 verified tracks, 9 languages, and 4-level trivia rounds without signing in or configuring OAuth credentials.
+            </p>
+
+            {/* Guest Mode Storage Notice */}
+            <div className="mt-3 bg-white/90 border border-indigo-100/90 rounded-xl p-3 text-[11px] text-slate-500 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span>Guest Storage Notice:</span>
               </div>
-            )}
+              <p>
+                Guest progress, streaks, and scores are stored locally in your browser. You can link your progress to a registered Google or Apple account later if you choose to configure OAuth.
+              </p>
+            </div>
           </div>
 
-          {/* Option 2: Continue with Google */}
+          {/* Option 2: Continue with Google (Optional OAuth) */}
           <div className="border border-slate-200 rounded-2xl p-4 transition-all hover:border-slate-300 bg-white">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -153,99 +135,163 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 <div>
                   <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <span>Continue with Google</span>
-                    {!authState.providers.google.configured && (
-                      <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                        Setup Required
+                    {!authState.providers.google.configured ? (
+                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                        Optional · Not Configured
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        Ready
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Sign in with your Google Account
+                    Sign in with your Google Account for cross-device sync
                   </p>
                 </div>
               </div>
 
-              {!authState.providers.google.configured ? (
-                <button
-                  type="button"
-                  onClick={() => toggleSetup('google')}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <span>Checklist</span>
-                  {showSetupDetails === 'google' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
-                >
-                  Sign In
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {!authState.providers.google.configured ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled
+                      aria-disabled="true"
+                      title="Google OAuth credentials are not configured on this server. Use Guest Mode to play immediately."
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed flex items-center gap-1.5 opacity-70"
+                    >
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Disabled</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSetup('google')}
+                      className="px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                      title="View setup instructions to configure later"
+                    >
+                      <span>Setup Guide</span>
+                      {showSetupDetails === 'google' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Google Setup Checklist Drawer */}
             {showSetupDetails === 'google' && (
-              <div className="mt-4 pt-3 border-t border-slate-100 text-xs space-y-2 bg-slate-50 p-3 rounded-xl">
+              <div className="mt-4 pt-3 border-t border-slate-100 text-xs space-y-2.5 bg-slate-50 p-3.5 rounded-xl">
                 <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Google Sign-In Setup Requirements:</span>
+                  <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Google Sign-In Configuration (Optional):</span>
                 </div>
-                <p className="text-[11px] text-slate-600">
-                  Google Sign-In requires active OAuth credentials configured in environment variables:
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  SongVerse runs completely in <strong>Guest Mode</strong> without OAuth. If you want to enable Google Sign-In later for cloud sync:
                 </p>
-                <ul className="list-disc pl-5 space-y-1 text-[11px] text-slate-600">
-                  {authState.providers.google.setupInstructions.map((inst, i) => (
-                    <li key={i}>{inst}</li>
-                  ))}
-                </ul>
-                <div className="text-[10px] text-slate-500 font-mono mt-1 pt-1 border-t border-slate-200">
-                  Missing variables: {authState.providers.google.missingEnvVars.join(', ')}
+                <ol className="list-decimal pl-5 space-y-1 text-[11px] text-slate-600">
+                  <li>Open <strong>Google Cloud Console</strong> &gt; APIs &amp; Services &gt; Credentials.</li>
+                  <li>Create an <strong>OAuth 2.0 Web Client ID</strong>.</li>
+                  <li>Add your application URL under <em>Authorized JavaScript origins</em> and <em>Authorized redirect URIs</em>.</li>
+                  <li>Set <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[10px]">GOOGLE_CLIENT_ID</code> in server environment variables.</li>
+                </ol>
+                <div className="text-[10px] text-slate-500 font-mono mt-1 pt-1.5 border-t border-slate-200">
+                  Status: No OAuth variables set. Guest Mode is active and unrestricted.
                 </div>
               </div>
             )}
           </div>
 
-          {/* Option 3: Play as Guest (Always Active & Instant) */}
-          <div className="border-2 border-indigo-500/60 bg-indigo-50/40 rounded-2xl p-4.5 transition-all">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
-                  🎮
+          {/* Option 3: Continue with Apple (Optional OAuth) */}
+          <div className="border border-slate-200 rounded-2xl p-4 transition-all hover:border-slate-300 bg-white">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 170 170">
+                    <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.42-6-9.21-10.88-20.08-14.62-32.61-3.74-12.53-5.61-24.16-5.61-34.89 0-14.81 3.8-27.12 11.41-36.93 7.6-9.81 17.06-14.86 28.38-15.15 4.35 0 9.17 1.13 14.46 3.4 5.29 2.27 8.94 3.45 10.95 3.55 1.57 0 5.42-1.28 11.56-3.83 6.13-2.55 11.4-3.68 15.79-3.4 11.75.53 21.17 4.7 28.27 12.52-10.22 6.19-15.22 14.86-15.01 26.02.21 8.7 3.58 15.98 10.11 21.84 6.53 5.86 14.15 9.11 22.86 9.76-2.02 6.09-4.54 12.44-7.57 19.06zM119.22 31.84c0-7.39 2.65-14.44 7.95-21.14 5.3-6.7 11.83-10.7 19.59-12 1.06 7.61-1.38 14.73-7.32 21.36-5.94 6.63-12.68 10.56-20.22 11.78z"/>
+                  </svg>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Play as Guest
-                  </h3>
-                  <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-100 px-2 py-0.5 rounded">
-                    Ready to Play Immediately
-                  </span>
+                  <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>Continue with Apple</span>
+                    {!authState.providers.apple.configured ? (
+                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                        Optional · Not Configured
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        Ready
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Use your Apple ID for verified cross-device play
+                  </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handlePlayAsGuest}
-                className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-xs transition-all cursor-pointer"
-              >
-                Play as Guest
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Start playing immediately without signing in or providing an email address.
-            </p>
-
-            {/* Guest Mode Privacy Notice */}
-            <div className="mt-3 bg-white/80 border border-indigo-100 rounded-xl p-3 text-[11px] text-slate-500 space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                <Info className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Guest Storage Notice:</span>
+              <div className="flex items-center gap-2">
+                {!authState.providers.apple.configured ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled
+                      aria-disabled="true"
+                      title="Apple Developer credentials are not configured on this server. Use Guest Mode to play immediately."
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed flex items-center gap-1.5 opacity-70"
+                    >
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Disabled</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSetup('apple')}
+                      className="px-2.5 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                      title="View setup instructions to configure later"
+                    >
+                      <span>Setup Guide</span>
+                      {showSetupDetails === 'apple' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-xl transition-colors cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                )}
               </div>
-              <p>
-                Guest progress, streaks, and unlocked achievements are stored locally in your browser. This data may be lost if you clear your browser cookies/cache or change devices. You can link your progress to a registered account later.
-              </p>
             </div>
+
+            {/* Apple Setup Checklist Drawer */}
+            {showSetupDetails === 'apple' && (
+              <div className="mt-4 pt-3 border-t border-slate-100 text-xs space-y-2.5 bg-slate-50 p-3.5 rounded-xl">
+                <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Sign In with Apple Configuration (Optional):</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Sign In with Apple is completely optional. To configure Apple Developer credentials in the future:
+                </p>
+                <ol className="list-decimal pl-5 space-y-1 text-[11px] text-slate-600">
+                  <li>Open <strong>Apple Developer Portal</strong> &gt; Certificates, Identifiers &amp; Profiles.</li>
+                  <li>Create a <strong>Services ID</strong> with &quot;Sign In with Apple&quot; enabled.</li>
+                  <li>Configure your domain and Return URLs.</li>
+                  <li>Generate a private key (<code className="font-mono text-[10px]">.p8</code> file).</li>
+                  <li>Set <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[10px]">APPLE_CLIENT_ID</code>, <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[10px]">APPLE_TEAM_ID</code>, and <code className="bg-slate-200 px-1 py-0.5 rounded font-mono text-[10px]">APPLE_KEY_ID</code> in server environment variables.</li>
+                </ol>
+                <div className="text-[10px] text-slate-500 font-mono mt-1 pt-1.5 border-t border-slate-200">
+                  Status: No Apple credentials set. Guest Mode is active and unrestricted.
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

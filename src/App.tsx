@@ -9,6 +9,7 @@ import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { CookieBanner } from './components/common/CookieBanner';
 import { LandingPage } from './components/landing/LandingPage';
+import { LanguageSelectionView } from './components/game/LanguageSelectionView';
 import { GameView } from './components/game/GameView';
 import { DailyChallengeView } from './components/daily/DailyChallengeView';
 import { MultiplayerView } from './components/multiplayer/MultiplayerView';
@@ -46,6 +47,19 @@ export default function App() {
     setUserProfile(gameEngine.getUserProfile());
   };
 
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('songverse_preferred_languages_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // Fallback
+    }
+    return ['English'];
+  });
+
   const handleNavigate = (view: string, mode?: GameMode) => {
     if (mode) setGameMode(mode);
     setCurrentView(view);
@@ -55,6 +69,13 @@ export default function App() {
 
   const handleStartPlay = (mode: GameMode = 'classic') => {
     setGameMode(mode);
+    setCurrentView('language_select');
+    refreshProfile();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleStartGameWithLanguages = (languages: string[]) => {
+    setSelectedLanguages(languages);
     setCurrentView('game');
     refreshProfile();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -87,9 +108,21 @@ export default function App() {
           />
         )}
 
+        {currentView === 'language_select' && (
+          <LanguageSelectionView
+            onStartGame={handleStartGameWithLanguages}
+            onBackToHome={() => handleNavigate('landing')}
+          />
+        )}
+
         {currentView === 'game' && (
           <GameView
             mode={gameMode}
+            selectedLanguages={selectedLanguages}
+            onChangeLanguages={() => {
+              setCurrentView('language_select');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             onNavigateHome={() => handleNavigate('landing')}
             onNavigateLeaderboard={() => handleNavigate('leaderboard')}
           />

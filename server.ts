@@ -7,11 +7,36 @@ const __dirname = path.dirname(__filename);
 
 import { catalogueStore } from './src/server/catalogueStore';
 import { importManager, IMPORT_PRESETS } from './src/server/importManager';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
+app.use('/audio', express.static(path.join(__dirname, 'public/audio')));
+
+// Supabase Server Integration (Gracefully degraded when unconfigured)
+const serverSupabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+const serverSupabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const isServerSupabaseConfigured = Boolean(
+  serverSupabaseUrl &&
+  serverSupabaseUrl.startsWith('https://') &&
+  serverSupabaseKey &&
+  serverSupabaseKey.length > 10 &&
+  !serverSupabaseUrl.includes('YOUR_SUPABASE')
+);
+
+let serverSupabase: SupabaseClient | null = null;
+if (isServerSupabaseConfigured) {
+  try {
+    serverSupabase = createClient(serverSupabaseUrl, serverSupabaseKey, {
+      auth: { persistSession: false }
+    });
+    console.log('[SongVerse Server] Supabase client initialized.');
+  } catch (err) {
+    console.warn('[SongVerse Server] Failed to initialize Supabase client:', err);
+  }
+}
 
 // In-memory cache for MusicBrainz API queries (10 minute TTL)
 interface CacheEntry {
@@ -69,6 +94,81 @@ const mbRateLimiter = new MusicBrainzRateLimiter();
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'SongVerse API', time: new Date().toISOString() });
+});
+
+// Supabase Connection Status Endpoint (Verifies real connection without claiming live prematurely)
+app.get('/api/supabase/status', async (_req: Request, res: Response) => {
+  let isLive = false;
+  let connectionError: string | null = null;
+
+  if (isServerSupabaseConfigured && serverSupabase) {
+    try {
+      // Test real connection to Supabase table
+      const { data, error } = await serverSupabase.from('game_sessions').select('id').limit(1);
+      if (!error) {
+        isLive = true;
+      } else {
+        connectionError = error.message;
+      }
+    } catch (err: any) {
+      connectionError = err.message || 'Connection test failed';
+    }
+  }
+
+  return res.json({
+    configured: isServerSupabaseConfigured,
+    live: isLive,
+    url: isServerSupabaseConfigured ? serverSupabaseUrl : null,
+    requiredEnvVars: ['SUPABASE_URL', 'SUPABASE_ANON_KEY'],
+    clientPublishableKeySet: Boolean(process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY),
+    serviceRoleKeySet: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    connectionError,
+    statusMessage: isLive
+      ? 'Supabase backend verified and live.'
+      : isServerSupabaseConfigured
+      ? `Supabase URL configured, but database test query failed: ${connectionError || 'tables pending migration'}. Apply schema in data/supabase_schema.sql.`
+      : 'Supabase credentials not set. Running in local fallback mode (guest sessions active, all game features functional).'
+  });
+});
+
+// Application Error Telemetry Endpoint (Sanitized, never logs secrets or tokens)
+app.post('/api/telemetry/error', async (req: Request, res: Response) => {
+  try {
+    const { errorCode, errorMessage, componentStack, context, userId } = req.body || {};
+    if (!errorCode || !errorMessage) {
+      return res.status(400).json({ error: 'Missing error code or message' });
+    }
+
+    const sensitiveKeys = ['password', 'token', 'auth', 'key', 'secret', 'cookie', 'authorization', 'credential', 'bearer'];
+    const safeContext: Record<string, unknown> = {};
+    if (context && typeof context === 'object') {
+      for (const [k, v] of Object.entries(context)) {
+        if (sensitiveKeys.some(s => k.toLowerCase().includes(s))) {
+          safeContext[k] = '[REDACTED]';
+        } else {
+          safeContext[k] = v;
+        }
+      }
+    }
+
+    if (serverSupabase) {
+      try {
+        await serverSupabase.from('application_errors').insert({
+          error_code: String(errorCode).slice(0, 100),
+          error_message: String(errorMessage).slice(0, 500),
+          component_stack: componentStack ? String(componentStack).slice(0, 2000) : null,
+          context: safeContext,
+          user_id: userId || null
+        });
+      } catch (err) {
+        console.warn('[Telemetry] Error recording to Supabase:', err);
+      }
+    }
+
+    return res.json({ logged: true });
+  } catch (err: any) {
+    return res.status(500).json({ logged: false, error: err.message });
+  }
 });
 
 // Licensing & Compliance Audit Endpoint
@@ -583,6 +683,138 @@ app.get('/api/catalogue/tracks', (req: Request, res: Response) => {
   res.json(result);
 });
 
+// Helper for language classification
+function detectLanguageFromMetadata(title: string = '', artist: string = '', country: string = ''): string {
+  const text = `${title} ${artist}`.toLowerCase();
+  if (/[\u0C00-\u0C7F]/.test(text) || /\b(telugu|tollywood|anirudh|devi sri prasad|spb|ghantasala|keeravani|sid sriram|ram miriyala)\b/i.test(text)) return 'Telugu';
+  if (/[\u0B80-\u0BFF]/.test(text) || /\b(tamil|kollywood|ar rahman|ilayaraja|yuvan|harris jayaraj|anirudh|dhanush)\b/i.test(text)) return 'Tamil';
+  if (/[\u0900-\u097F]/.test(text) || /\b(hindi|bollywood|arijit|shreya|kishore|rafi|lata|badshah|pritam|sonu nigam)\b/i.test(text)) return 'Hindi';
+  if (/[\u0D00-\u0D7F]/.test(text) || /\b(malayalam|mollywood|yesudas|sushin|chithra|mg sreekumar)\b/i.test(text)) return 'Malayalam';
+  if (/[\u0C80-\u0CFF]/.test(text) || /\b(kannada|sandalwood|charan raj|rajan|nagendra|vijay prakash)\b/i.test(text)) return 'Kannada';
+  if (/[\u0980-\u09FF]/.test(text) || /\b(bengali|bangla|rabindra|anupam|shaan|hemanta)\b/i.test(text)) return 'Bengali';
+  if (/[\u0A00-\u0A7F]/.test(text) || /\b(punjabi|ap dhillon|diljit|sidhu|karan aujla|gurdas|shubh)\b/i.test(text)) return 'Punjabi';
+  if (/\b(spanish|español|bad bunny|rosalia|enrique|shakira|j balvin|maluma|reggaeton|despacito|karol g|quevedo|bizarrap)\b/i.test(text) || country === 'ES' || country === 'MX' || country === 'CO' || country === 'AR') return 'Spanish';
+
+  return 'English';
+}
+
+// 3. Unified Music Catalogue Search (Apple iTunes API + Metadata Providers)
+app.get('/api/music/search', async (req: Request, res: Response) => {
+  try {
+    const rawQuery = (req.query.q as string || req.query.query as string || '').trim();
+    const title = (req.query.title as string || '').trim();
+    const artist = (req.query.artist as string || '').trim();
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string || '15', 10), 1), 50);
+
+    const fullTerm = title && artist ? `${title} ${artist}` : (rawQuery || title || artist);
+    if (!fullTerm) {
+      return res.status(400).json({ error: 'Search term required. Provide q, title, or artist query parameters.', results: [] });
+    }
+
+    let itunesResults: any[] = [];
+    try {
+      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(fullTerm)}&entity=song&limit=${limit}`;
+      const itunesRes = await fetch(itunesUrl, {
+        headers: { 'User-Agent': 'SongVerse/1.0.0 ( contact@songverse.app )' },
+        signal: AbortSignal.timeout(6000)
+      });
+      if (itunesRes.ok) {
+        const data = (await itunesRes.json()) as any;
+        itunesResults = (data.results || []).map((item: any) => {
+          const year = item.releaseDate ? parseInt(item.releaseDate.substring(0, 4), 10) : 2020;
+          const highResArtwork = (item.artworkUrl100 || '').replace('100x100bb.jpg', '600x600bb.jpg');
+          const hasAudio = Boolean(item.previewUrl);
+          return {
+            id: `itunes_${item.trackId}`,
+            providerTrackId: String(item.trackId),
+            title: item.trackName || 'Unknown Title',
+            artist: item.artistName || 'Unknown Artist',
+            album: item.collectionName || 'Single',
+            releaseYear: isNaN(year) ? 2020 : year,
+            country: item.country || 'Global',
+            genre: item.primaryGenreName || 'Pop',
+            language: detectLanguageFromMetadata(item.trackName, item.artistName, item.country),
+            artworkUrl: highResArtwork || item.artworkUrl100,
+            audioUrl: item.previewUrl || undefined,
+            hasAuthorizedAudio: hasAudio,
+            playbackStatus: hasAudio ? 'verified_audio' : 'metadata_only',
+            audioAvailability: hasAudio ? 'available' : 'restricted',
+            licenceType: hasAudio ? 'Apple iTunes Promotional Preview (30s)' : 'Metadata Only',
+            licenceReference: `ITUNES-${item.trackId}`,
+            attributionText: `Artwork and promotional preview courtesy of Apple iTunes Search API. For interactive trivia audition.`,
+            source: 'apple-itunes',
+            isrc: item.isrc || undefined
+          };
+        });
+      }
+    } catch (itunesErr) {
+      console.warn('[Search] iTunes search query error:', itunesErr);
+    }
+
+    return res.json({
+      query: fullTerm,
+      count: itunesResults.length,
+      results: itunesResults
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Internal search error', results: [] });
+  }
+});
+
+// 4. Add / Save Track to Server Catalogue Store
+app.post('/api/catalogue/tracks', (req: Request, res: Response) => {
+  try {
+    const rawTrack = req.body;
+    if (!rawTrack || !rawTrack.title || !rawTrack.artist) {
+      return res.status(400).json({ error: 'INVALID_TRACK', message: 'Track must include title and artist.' });
+    }
+
+    const serverTrack = catalogueStore.mapLegacyToTrack(rawTrack);
+    serverTrack.artworkUrl = rawTrack.artworkUrl || serverTrack.artworkUrl;
+    serverTrack.audioUrl = rawTrack.audioUrl || serverTrack.audioUrl;
+    if (rawTrack.playbackStatus) {
+      serverTrack.playbackStatus = rawTrack.playbackStatus;
+      serverTrack.hasAuthorizedAudio = rawTrack.playbackStatus === 'verified_audio' && Boolean(serverTrack.audioUrl || serverTrack.audioPreset);
+      serverTrack.isAuthorizedForGameplay = serverTrack.hasAuthorizedAudio;
+    }
+
+    const result = catalogueStore.addOrUpdateTrack(serverTrack);
+    return res.json({
+      success: true,
+      added: result.added,
+      updated: result.updated,
+      track: result.track,
+      reason: result.reason
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'CATALOGUE_SAVE_ERROR', message: err.message });
+  }
+});
+
+// 5. Remove Track from Server Catalogue Store
+app.delete('/api/catalogue/tracks/:id', (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    if (!id) {
+      return res.status(400).json({ error: 'MISSING_ID', message: 'Track ID required.' });
+    }
+    const result = catalogueStore.removeTrack(id);
+    return res.json({
+      success: true,
+      removed: result.removed,
+      id: result.id
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'CATALOGUE_DELETE_ERROR', message: err.message });
+  }
+});
+
+// 6. Explicitly Clear Active Catalogue
+app.post('/api/catalogue/clear', (_req: Request, res: Response) => {
+  catalogueStore.clearCatalogue();
+  return res.json({ success: true, count: 0, message: 'Active catalogue cleared successfully.' });
+});
+
 // ==========================================
 // --- Server-Authoritative Game Rounds ---
 // ==========================================
@@ -601,9 +833,10 @@ const activeServerRounds = new Map<string, ServerGameRound>();
 
 // 1. Select Random Eligible Playable Song for Round
 app.post('/api/game/round/random', (req: Request, res: Response) => {
-  const { language, genre, decade, excludeTrackIds } = req.body || {};
+  const { language, languages, genre, decade, excludeTrackIds } = req.body || {};
   const selection = catalogueStore.selectRandomPlayableSong({
     language,
+    languages,
     genre,
     decade,
     excludeTrackIds
@@ -699,6 +932,20 @@ app.post('/api/game/round/guess', (req: Request, res: Response) => {
     timestamp: Date.now()
   });
 
+  // Record verified score and answer in Supabase (if connected)
+  if (serverSupabase) {
+    serverSupabase.from('game_answers').insert({
+      session_id: roundId,
+      round_id: roundId,
+      level: currentLevel,
+      guess_track_id: guessTrackId,
+      is_correct: isCorrect,
+      points_awarded: pointsAwarded
+    }).then(({ error }) => {
+      if (error) console.warn('[Supabase] Note inserting game_answer:', error.message);
+    }).catch(() => {});
+  }
+
   return res.json({
     roundId,
     isCorrect,
@@ -718,6 +965,7 @@ app.post('/api/game/round/skip', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'INVALID_ROUND', message: 'Round not active.' });
   }
 
+  const skippedLevel = round.currentLevel;
   let roundCompleted = false;
   let nextLevel: number | undefined;
 
@@ -728,6 +976,18 @@ app.post('/api/game/round/skip', (req: Request, res: Response) => {
   } else {
     nextLevel = round.currentLevel + 1;
     round.currentLevel = nextLevel as any;
+  }
+
+  // Record skip event in Supabase (if connected)
+  if (serverSupabase) {
+    serverSupabase.from('game_skips').insert({
+      session_id: roundId,
+      round_id: roundId,
+      level: skippedLevel,
+      skip_type: type
+    }).then(({ error }) => {
+      if (error) console.warn('[Supabase] Note inserting game_skip:', error.message);
+    }).catch(() => {});
   }
 
   return res.json({

@@ -46,9 +46,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Zone 2: 4-5 Clean Nav Links (Single-line, unboxed) */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
           <button
-            onClick={() => handleNav('game', 'classic')}
+            onClick={() => handleNav('language_select', 'classic')}
             className={`whitespace-nowrap hover:text-indigo-600 transition-colors cursor-pointer py-1 ${
-              currentView === 'game' ? 'text-indigo-600 font-semibold border-b-2 border-indigo-600' : ''
+              currentView === 'game' || currentView === 'language_select' ? 'text-indigo-600 font-semibold border-b-2 border-indigo-600' : ''
             }`}
           >
             Play
@@ -109,7 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             Profile ({userScore} pts)
           </button>
           <button
-            onClick={() => handleNav('game', 'classic')}
+            onClick={() => handleNav('language_select', 'classic')}
             className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-lg shadow-sm shadow-indigo-200 transition-all cursor-pointer whitespace-nowrap"
           >
             Play Now
@@ -119,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Mobile menu button */}
         <div className="flex md:hidden items-center gap-2">
           <button
-            onClick={() => handleNav('game', 'classic')}
+            onClick={() => handleNav('language_select', 'classic')}
             className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg"
           >
             Play
@@ -138,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-slate-200 bg-white/95 backdrop-blur-md px-4 pt-3 pb-5 space-y-2">
           <button
-            onClick={() => handleNav('game', 'classic')}
+            onClick={() => handleNav('language_select', 'classic')}
             className="w-full text-left px-3 py-2 text-sm font-medium text-slate-800 hover:bg-indigo-50 rounded-lg flex items-center gap-3"
           >
             <Music className="w-4 h-4 text-indigo-600" />

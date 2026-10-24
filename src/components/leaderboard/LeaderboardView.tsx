@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
-import { Trophy, Flame, Award, Calendar, Clock, Globe } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Flame, Award, Calendar, Clock, Globe, Database } from 'lucide-react';
 import { LeaderboardEntry } from '../../types';
 import { gameEngine } from '../../services/gameEngine';
+import { fetchSupabaseLeaderboard, isSupabaseConfigured } from '../../services/supabaseClient';
 
 export const LeaderboardView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'all-time'>('daily');
+  const [supabaseEntries, setSupabaseEntries] = useState<LeaderboardEntry[] | null>(null);
   const userProfile = gameEngine.getUserProfile();
+
+  useEffect(() => {
+    fetchSupabaseLeaderboard().then(entries => {
+      if (entries && entries.length > 0) {
+        setSupabaseEntries(entries);
+      }
+    });
+  }, []);
 
   // Curated verified global leaderboard data supplemented with user's personal score
   const dailyLeaderboard: LeaderboardEntry[] = [
@@ -34,11 +44,13 @@ export const LeaderboardView: React.FC = () => {
     { rank: 5, userId: 'usr_groove', displayName: 'GrooveMaster99', avatarSeed: 'groove', score: 12100, accuracy: 88, streak: 19, dateAchieved: '2026', gameMode: 'classic' }
   ];
 
-  const currentList = activeTab === 'daily'
-    ? dailyLeaderboard
-    : activeTab === 'weekly'
-    ? weeklyLeaderboard
-    : allTimeLeaderboard;
+  const currentList = (supabaseEntries && supabaseEntries.length > 0)
+    ? supabaseEntries
+    : (activeTab === 'daily'
+      ? dailyLeaderboard
+      : activeTab === 'weekly'
+      ? weeklyLeaderboard
+      : allTimeLeaderboard);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -48,6 +60,15 @@ export const LeaderboardView: React.FC = () => {
         <div className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full">
           <Trophy className="w-3.5 h-3.5" />
           <span>Global Trivia Rankings</span>
+          {isSupabaseConfigured() ? (
+            <span className="text-[10px] text-emerald-700 font-mono bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+              Supabase Live
+            </span>
+          ) : (
+            <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+              Guest Mode
+            </span>
+          )}
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
           SongVerse Leaderboards

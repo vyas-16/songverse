@@ -1,6 +1,70 @@
 import { Track, GameLevelNumber } from '../types';
 import { GAME_LEVELS } from '../config/gameConfig';
 
+export interface AudioProviderAdapter {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly isAuthorizedForTriviaGames: boolean;
+  readonly requiresUserSubscription: boolean;
+  readonly status: 'ready' | 'missing_credentials' | 'prohibited_by_policy' | 'unavailable';
+  readonly policyNotice?: string;
+  readonly supportedLicenceTypes: string[];
+  canPlay(track: Track): boolean;
+}
+
+export const AUDIO_PROVIDER_ADAPTERS: AudioProviderAdapter[] = [
+  {
+    id: 'html5_streaming',
+    name: 'HTML5 Streaming Audio Adapter',
+    description: 'Direct streaming of pre-cleared audio clips (Apple iTunes 30s previews, Jamendo CC, Open Audio Project, and authorized recordings) with hardware-precise duration cutoffs.',
+    isAuthorizedForTriviaGames: true,
+    requiresUserSubscription: false,
+    status: 'ready',
+    supportedLicenceTypes: [
+      'Apple iTunes Promotional Preview (30s)',
+      'Creative Commons 0',
+      'CC-BY-4.0',
+      'Public Domain Dedication',
+      'Direct Authorized Stream',
+      'B2B Pre-Cleared (Feed.fm / 7digital)'
+    ],
+    canPlay: (track: Track) => track.playbackStatus === 'verified_audio' && Boolean(track.audioUrl || track.audioAssetUrl)
+  },
+  {
+    id: 'webaudio_synthesis',
+    name: 'Procedural Web Audio Synthesis Adapter',
+    description: 'Pure browser-synthesized harmonic and melodic audio cues generated procedurally with zero external network or licensing dependencies.',
+    isAuthorizedForTriviaGames: true,
+    requiresUserSubscription: false,
+    status: 'ready',
+    supportedLicenceTypes: ['Creative Commons 0', 'Procedural Synthesis Engine'],
+    canPlay: (track: Track) => track.playbackStatus === 'verified_audio' && Boolean(track.audioSynthesizerPreset)
+  },
+  {
+    id: 'spotify_sdk',
+    name: 'Spotify Web Playback SDK (Policy Gated)',
+    description: 'Commercial Spotify audio integration.',
+    isAuthorizedForTriviaGames: false,
+    requiresUserSubscription: true,
+    status: 'prohibited_by_policy',
+    policyNotice: 'PROHIBITED BY POLICY: Spotify Developer Terms (Section II.3) strictly prohibit utilizing Spotify playback streams in interactive games, trivia contests, or quizzes without an explicit custom commercial synchronization agreement. End-user Spotify Premium accounts do not grant game sync rights.',
+    supportedLicenceTypes: [],
+    canPlay: () => false
+  },
+  {
+    id: 'apple_musickit',
+    name: 'Apple MusicKit JS (Credential & Terms Gated)',
+    description: 'Full-length interactive streaming via Apple Music Web SDK.',
+    isAuthorizedForTriviaGames: false,
+    requiresUserSubscription: true,
+    status: 'missing_credentials',
+    policyNotice: 'UNAVAILABLE: Requires Apple Developer Program membership, MusicKit private key (.p8), developer tokens, and user Apple Music subscriptions. Consumer streaming rights do not grant trivia guessing clearance.',
+    supportedLicenceTypes: [],
+    canPlay: () => false
+  }
+];
+
 type PlaybackStateListener = (isPlaying: boolean, currentSeconds: number, maxSeconds: number) => void;
 type WaveformListener = (amplitudes: number[]) => void;
 
@@ -19,6 +83,14 @@ class AudioEngineService {
 
   private activeAudioElement: HTMLAudioElement | null = null;
   private audioAnalyzer: AnalyserNode | null = null;
+
+  public getProviderAdapters(): AudioProviderAdapter[] {
+    return [...AUDIO_PROVIDER_ADAPTERS];
+  }
+
+  public getAdapterForTrack(track: Track): AudioProviderAdapter | undefined {
+    return AUDIO_PROVIDER_ADAPTERS.find(adapter => adapter.canPlay(track));
+  }
 
   constructor() {
     // AudioContext will be initialized on first user interaction

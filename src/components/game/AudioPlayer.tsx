@@ -18,6 +18,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   onClipFinished
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [waveformBars, setWaveformBars] = useState<number[]>(new Array(32).fill(0.18));
   const [isMuted, setIsMuted] = useState(false);
@@ -25,10 +27,19 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const levelConfig = GAME_LEVELS[level];
   const maxDuration = levelConfig.durationSeconds;
 
+  // Reset errors when level or track changes
+  useEffect(() => {
+    setAudioError(null);
+    setIsLoading(false);
+  }, [track.id, level]);
+
   useEffect(() => {
     const unsubPlayback = audioEngine.subscribePlayback((playing, curTime) => {
       setIsPlaying(playing);
       setCurrentTime(curTime);
+      if (playing) {
+        setIsLoading(false);
+      }
       if (!playing && curTime >= maxDuration - 0.05) {
         onClipFinished?.();
       }
@@ -49,7 +60,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     if (isPlaying) {
       audioEngine.stop();
     } else {
-      await audioEngine.playClip(track, level);
+      setAudioError(null);
+      setIsLoading(true);
+      try {
+        await audioEngine.playClip(track, level);
+      } catch (err: unknown) {
+        setAudioError((err as Error).message || 'Audio playback error. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -137,12 +156,33 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         </div>
       )}
 
+      {/* Playback Error & Retry Banner */}
+      {audioError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-6 flex items-center justify-between gap-3 text-xs text-rose-800">
+          <div className="flex items-center gap-2">
+            <VolumeX className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{audioError}</span>
+          </div>
+          <button
+            onClick={handlePlayClip}
+            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg shrink-0 cursor-pointer transition-colors"
+          >
+            Retry Playback
+          </button>
+        </div>
+      )}
+
       {/* Action Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="text-xs text-slate-500 max-w-sm">
           {track.playbackStatus === 'metadata_only' ? (
             <span className="text-slate-500">
               Audio excerpt unavailable. You may search for this track in Level 4 or skip this round.
+            </span>
+          ) : isLoading ? (
+            <span className="text-indigo-600 font-medium flex items-center gap-1.5 animate-pulse">
+              <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+              Loading verified audio recording...
             </span>
           ) : isPlaying ? (
             <span className="text-indigo-600 font-medium flex items-center gap-1.5 animate-pulse">
@@ -158,7 +198,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
         <button
           onClick={handlePlayClip}
-          disabled={roundStatus !== 'playing' || track.playbackStatus === 'metadata_only'}
+          disabled={roundStatus !== 'playing' || track.playbackStatus === 'metadata_only' || isLoading}
           className={`px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2.5 shadow-sm transition-all cursor-pointer ${
             track.playbackStatus === 'metadata_only'
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
@@ -171,6 +211,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <>
               <VolumeX className="w-4 h-4" />
               <span>Audio Unavailable</span>
+            </>
+          ) : isLoading ? (
+            <>
+              <RotateCcw className="w-4 h-4 animate-spin" />
+              <span>Loading Clip...</span>
             </>
           ) : isPlaying ? (
             <>

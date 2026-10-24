@@ -11,13 +11,14 @@ export interface ServerTrack {
   releaseDate?: string;
   releaseYear?: number;
   durationMs?: number;
-  source: 'musicbrainz-open-metadata' | 'songverse-authorized' | 'open-music-archive';
+  source: 'musicbrainz-open-metadata' | 'songverse-authorized' | 'open-music-archive' | 'apple-itunes' | 'community-submission' | string;
   importDate: string;
   language: string;
   country?: string;
   genre: string;
   tags: string[];
   isrcs: string[];
+  artworkUrl?: string;
   // Decoupled Rights Architecture
   hasAuthorizedAudio: boolean;
   isAuthorizedForGameplay: boolean;
@@ -91,18 +92,24 @@ export class CatalogueStore {
       if (fs.existsSync(CATALOGUE_FILE)) {
         const raw = fs.readFileSync(CATALOGUE_FILE, 'utf8');
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           this.tracks = parsed;
           console.log(`[CatalogueStore] Loaded ${this.tracks.length} tracks from ${CATALOGUE_FILE}`);
           return;
         }
       }
     } catch (err) {
-      console.error('[CatalogueStore] Failed to load catalogue file, seeding defaults:', err);
+      console.error('[CatalogueStore] Failed to load catalogue file:', err);
     }
 
-    // Seed defaults from backup or verified initial set
-    this.seedInitialCatalogue();
+    // Default to empty catalogue without auto-seeding demo tracks
+    this.tracks = [];
+    this.saveCatalogue();
+  }
+
+  public clearCatalogue() {
+    this.tracks = [];
+    this.recentTargetTrackIds = [];
     this.saveCatalogue();
   }
 
@@ -112,22 +119,6 @@ export class CatalogueStore {
       fs.writeFileSync(CATALOGUE_FILE, JSON.stringify(this.tracks, null, 2), 'utf8');
     } catch (err) {
       console.error('[CatalogueStore] Error writing catalogue file:', err);
-    }
-  }
-
-  private seedInitialCatalogue() {
-    if (fs.existsSync(BACKUP_FILE)) {
-      try {
-        const backupRaw = fs.readFileSync(BACKUP_FILE, 'utf8');
-        const backupData = JSON.parse(backupRaw);
-        if (backupData.tracks && Array.isArray(backupData.tracks)) {
-          this.tracks = backupData.tracks.map((t: any) => this.mapLegacyToTrack(t));
-          console.log(`[CatalogueStore] Seeded ${this.tracks.length} tracks from backup file`);
-          return;
-        }
-      } catch (err) {
-        console.error('[CatalogueStore] Error seeding from backup:', err);
-      }
     }
   }
 
@@ -160,6 +151,7 @@ export class CatalogueStore {
       licenceType: legacy.licenceType || (isPlayable ? 'Creative Commons 0' : 'Metadata Only (MusicBrainz ODbL)'),
       licenceReference: legacy.licenceReference || (isPlayable ? 'SV-LIC-AUTH' : 'ODbL-MUSICBRAINZ'),
       attributionText: legacy.attributionText || 'SongVerse Authorized Catalogue Entry',
+      artworkUrl: legacy.artworkUrl,
       artworkGradient: legacy.artworkGradient || 'from-indigo-600 via-purple-600 to-pink-500',
       clipStartSeconds: legacy.clipStartSeconds || 15,
       aliases: legacy.aliases || [legacy.title, `${legacy.artist} ${legacy.title}`]
@@ -189,10 +181,12 @@ export class CatalogueStore {
           hasAuthorizedAudio: existing.hasAuthorizedAudio || track.hasAuthorizedAudio,
           isAuthorizedForGameplay: existing.isAuthorizedForGameplay || track.isAuthorizedForGameplay,
           playbackStatus: existing.hasAuthorizedAudio ? 'verified_audio' : track.playbackStatus,
-          audioPreset: existing.audioPreset || track.audioPreset
+          audioPreset: existing.audioPreset || track.audioPreset,
+          artworkUrl: track.artworkUrl || existing.artworkUrl
         };
         this.tracks[idx] = merged;
-        return { added: false, updated: true, track: merged, reason: 'Updated existing record by Provider MBID' };
+        this.saveCatalogue();
+        return { added: false, updated: true, track: merged, reason: 'Updated existing record by Provider ID' };
       }
     }
 
@@ -200,6 +194,7 @@ export class CatalogueStore {
     const idIdx = this.tracks.findIndex(t => t.id === track.id);
     if (idIdx >= 0) {
       this.tracks[idIdx] = { ...this.tracks[idIdx], ...track };
+      this.saveCatalogue();
       return { added: false, updated: true, track: this.tracks[idIdx], reason: 'Updated existing internal ID' };
     }
 
@@ -222,7 +217,18 @@ export class CatalogueStore {
 
     // New unique recording
     this.tracks.push(track);
+    this.saveCatalogue();
     return { added: true, updated: false, track, reason: 'Inserted new unique track' };
+  }
+
+  public removeTrack(id: string): { removed: boolean; id: string } {
+    const initialLen = this.tracks.length;
+    this.tracks = this.tracks.filter(t => t.id !== id && t.providerTrackId !== id);
+    const removed = this.tracks.length < initialLen;
+    if (removed) {
+      this.saveCatalogue();
+    }
+    return { removed, id };
   }
 
   public getAllTracks(): ServerTrack[] {
@@ -360,14 +366,24 @@ export class CatalogueStore {
    */
   public selectRandomPlayableSong(options: {
     language?: string;
+    languages?: string[];
     genre?: string;
     decade?: string;
     excludeTrackIds?: string[];
   }): { eligible: boolean; track?: ServerTrack; message?: string } {
     let eligible = this.tracks.filter(t => t.isAuthorizedForGameplay && t.playbackStatus === 'verified_audio');
 
-    // Language filter
-    if (options.language && options.language !== 'ALL') {
+    // Multi-Language filter
+    if (options.languages && options.languages.length > 0) {
+      const matchLangs = options.languages.map(l => l.toLowerCase());
+      eligible = eligible.filter(t => matchLangs.includes(t.language.toLowerCase()));
+      if (eligible.length === 0) {
+        return {
+          eligible: false,
+          message: `No authorized audio recordings are currently available for the selected languages: ${options.languages.join(', ')}.`
+        };
+      }
+    } else if (options.language && options.language !== 'ALL') {
       const matchLang = options.language.toLowerCase();
       eligible = eligible.filter(t => t.language.toLowerCase() === matchLang);
       if (eligible.length === 0) {

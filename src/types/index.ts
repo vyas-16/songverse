@@ -14,6 +14,7 @@ export interface TrackMetadata {
   releaseYear: number;
   decade: string;
   country?: string; // Country/region of origin
+  artworkUrl?: string; // Real high-resolution album artwork URL from music catalogue API
   artworkGradient: string; // Tailored CSS gradient for cover art
   aliases?: string[];
   musicBrainzId?: string;
@@ -34,7 +35,7 @@ export interface AudioStreamSource {
 // 3. Decoupled Legal & Licensing Compliance Record
 export interface LicensingRecord {
   licenceReference: string;
-  licenceType: 'Creative Commons 0' | 'CC-BY-4.0' | 'Public Domain Dedication' | 'Open Audio Project' | 'Metadata Only (MusicBrainz ODbL)' | 'B2B Pre-Cleared (Feed.fm / 7digital)';
+  licenceType: 'Creative Commons 0' | 'CC-BY-4.0' | 'Public Domain Dedication' | 'Open Audio Project' | 'Metadata Only (MusicBrainz ODbL)' | 'B2B Pre-Cleared (Feed.fm / 7digital)' | 'Apple iTunes Promotional Preview (30s)' | 'Jamendo Creative Commons' | 'Direct Authorized Stream' | string;
   attributionText: string;
   regionRestrictions: string[];
   rightsTier?: 'b2b_commercial_cleared' | 'open_commons' | 'public_domain' | 'metadata_only';
@@ -44,7 +45,7 @@ export interface LicensingRecord {
 
 // Complete Unified Track (Composite interface preserving 100% backwards-compatibility)
 export interface Track extends TrackMetadata, AudioStreamSource, LicensingRecord {
-  provider: 'songverse-authorized' | 'open-music-archive' | 'musicbrainz-open-metadata' | 'community-submission' | 'b2b-licensed-cleared';
+  provider: 'songverse-authorized' | 'open-music-archive' | 'musicbrainz-open-metadata' | 'community-submission' | 'b2b-licensed-cleared' | 'apple-itunes';
 }
 
 
@@ -115,6 +116,7 @@ export interface GameSession {
     type: 'genre' | 'decade' | 'language';
     value: string;
   };
+  selectedLanguages?: string[];
 }
 
 export interface LevelConfig {
